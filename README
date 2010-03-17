@@ -1,0 +1,4 @@
+Package to generate efficient geometric algebras
+
+Used symbolic BLD-GA to expand expressions of sub-classes to generate
+fast code for the basic geometric algebra functions.
