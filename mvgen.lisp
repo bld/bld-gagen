@@ -1,16 +1,10 @@
 (in-package :bld-gagen)
 
-(export '(defga spec))
-
-#|
-(defmacro defgfun (class bitmap)
-  "Make a GA object creation function of the given class name and bitmap"
-  (let* ((args (loop for b across bitmap
-		  collect (build-symbol c (:< (format nil "~b" b)))))
-	 (args-op (mapcar #'(lambda (arg) (list arg 0)) args)))
-    `(defun ,class (&optional ,@args-op)
-       (make-instance ',class :coef (vector ,@args)))))
-|#
+(export '(parent
+	  spec
+	  child
+	  lookup
+	  defga))
 
 (defclass parent (g)
   ((spec :reader spec)))
@@ -44,13 +38,26 @@
   ((lookup :reader lookup)
    (parent :reader parent)))
 
+(defmacro defchildfun (child bitmap)
+  (let* ((args (loop for b across bitmap
+		  collect (build-symbol c (:< (format nil "~b" b)))))
+	 (args-key (mapcar #'(lambda (arg) (list arg 0)) args)))
+    `(defun ,child (&key ,@args-key)
+       (make-instance ',child :coef
+		      (make-array ,(length bitmap)
+				  :element-type 'double-float
+				  :initial-contents (mapcar #'(lambda (x)
+								(coerce x 'double-float))
+							    (list ,@args)))))))
+
 (defmacro defchild (child parent dim bitmap)
   "Define a specialized GA class instance given name & parent class. Parent must have name as a key in it's spec hash table."
   (let ((psize (expt 2 dim))
 	(size (length bitmap)))
     `(progn
        (defclass ,child (,parent child)
-	 ((coef :initform (make-array ,size))
+	 ((coef :initform (make-array ,size :element-type 'double-float)
+		:type (simple-array double-float (,size))) 
 	  (size :allocation :class
 		:initform ,size)
 	  (bitmap :allocation :class
@@ -59,7 +66,7 @@
 		  :initform (make-lookup ,psize ,bitmap))
 	  (parent :allocation :class
 		  :initform ',parent)))
-       (defgfun ,child ,bitmap))))
+       (defchildfun ,child ,bitmap))))
 
 (defmacro defgref (child lookup)
   "Define GREF method for a child class"

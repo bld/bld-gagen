@@ -1,5 +1,14 @@
 (in-package :bld-gagen)
 
+(export '(defga
+	  defgamethod
+	  defgamethods1
+	  defgamethods2
+	  defgamethods3
+	  defgamethodsall1
+	  defgamethodsall2
+	  defgamethodsall))
+
 (defun make-gaobj (sym class)
   "Make symbolic GA object of given symbol and specialized child class"
   (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
@@ -59,17 +68,20 @@
 	    res))))
 
 (defmacro defgamethods1 (fun classes)
+  "Define geometric algebra methods of one argument for the given list of classes"
   `(progn
      ,@(loop for class in classes
 	  collect `(defgamethod ,fun ,class))))
 
 (defmacro defgamethods2 (fun classes1 classes2)
+  "Define geometric algebra methods of two arguments for the given two lists of classes"
   `(progn
      ,@(loop for class1 in classes1
 	  append (loop for class2 in classes2
 		    collect `(defgamethod ,fun ,class1 ,class2)))))
 
 (defmacro defgamethods3 (fun classes1 classes2 classes3)
+  "Define geometric algebra methods of three arguments for the given three lists of classes"
   `(progn
      ,@(loop for class1 in classes1
 	  append (loop for class2 in classes2
@@ -77,14 +89,66 @@
 			      collect `(defgamethod ,fun ,class1 ,class2 ,class3))))))
 
 (defun spec-classes (class)
+  "Return list of classes in the spec of object of given class"
   (mapcar #'first (spec (make-instance class))))
 
 (defun spec-bitmaps (class)
+  "Return list of bitmaps of classes in the spec of object of given class"
   (mapcar #'second (spec (make-instance class))))
 
 (defmacro defgamethodsall1 (fun parent)
+  "Define geometric algebra methods of all child classes of given function and parent class"
   `(defgamethods1 ,fun ,(spec-classes parent)))
 
 (defmacro defgamethodsall2 (fun parent)
+  "Define all geometric methods between all child classes of given function and parent class"
   (let ((classes (spec-classes parent)))
     `(defgamethods2 ,fun ,classes ,classes)))
+
+;; Table of BLD-GA methods that can be auto-generated
+(defparameter *gamethods-table*
+  '((+g2 all all)
+    (-g2 all all)
+    (*gs all float)
+    (/gs all float)
+    (*o2 all all)
+    (*g2 all all)
+    (*i2 all all)
+    (*c2 all all)
+    (*s2 all all)
+    (revg all)
+    (invv versor)
+    (refl all vector)
+    (rot all spinor)
+    (spin all spinor)
+    (normr2 all)
+    (normr all)
+    (norme2 all)
+    (norme all)))
+
+(defun find-versors (parent)
+  "Return a list of versor child-classes given a parent class"
+  (loop for spec in (spec-classes parent)
+     when (or (every #'evenp (grades (make-gaobj 'a spec)))
+	      (every #'oddp (grades (make-gaobj 'a spec))))
+     collect spec))
+
+(defmacro defgamethodsall (parent vector spinor)
+  (let ((versors (find-versors parent)))
+  `(flet ((simp (expr) (simp-socket expr)))
+     (maxima-start)
+     ,@(loop for methdef in *gamethods-table*
+	  for method = (first methdef)
+	  for classes = (subst '(float) 'float
+			       (subst (spec-classes parent) 'all
+				      (subst (list spinor) 'spinor
+					     (subst (list vector) 'vector
+						    (subst versors 'versor 
+							   (rest methdef))))))
+	  for macro = (case (length classes)
+			(1 'defgamethods1)
+			(2 'defgamethods2)
+			(3 'defgamethods3))
+	  collect
+	    `(,macro ,method ,@classes))
+     (maxima-shutdown))))
