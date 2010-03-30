@@ -9,5 +9,5 @@
 		   (mve2 #(#b0 #b1 #b10 #b11)) ; multivector
 		   (re2 #(#b0 #b11)))) ; spinor/rotor
 
-(defgamethodsall e2 ve2 re2)
+(defgamethodsall e2 :vector ve2 :spinor re2)
 

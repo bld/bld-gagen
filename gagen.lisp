@@ -133,22 +133,37 @@
 	      (every #'oddp (grades (make-gaobj 'a spec))))
      collect spec))
 
-(defmacro defgamethodsall (parent vector spinor)
-  (let ((versors (find-versors parent)))
-  `(flet ((simp (expr) (simp-socket expr)))
-     (maxima-start)
-     ,@(loop for methdef in *gamethods-table*
-	  for method = (first methdef)
-	  for classes = (subst '(float) 'float
-			       (subst (spec-classes parent) 'all
-				      (subst (list spinor) 'spinor
-					     (subst (list vector) 'vector
-						    (subst versors 'versor 
-							   (rest methdef))))))
-	  for macro = (case (length classes)
-			(1 'defgamethods1)
-			(2 'defgamethods2)
-			(3 'defgamethods3))
-	  collect
-	    `(,macro ,method ,@classes))
-     (maxima-shutdown))))
+(defun simp (expr)
+  "Redefine SIMP to call SIMP-SOCKET for speed of code generation"
+  (simp-socket expr))
+
+(defun subst-unless-nil (new old tree)
+  "Just return a tree if NEW argument to SUBST is NIL"
+  (if new
+      (subst new old tree)
+      tree))
+
+(defmacro defgamethodsall (parent &key vector spinor)
+  "Define all GA methods according to the table in *GAMETHODS-TABLE* given the vector and spinor classes in the algebra"
+  (let ((versors (find-versors parent))) ; find all versor classes in parent
+    `(progn
+       (maxima-start)
+       ,@(loop for methdef in *gamethods-table* ; loop through method definitions
+	    for method = (first methdef)
+	    for classes = (subst '(float) 'float ; replacing keywords with appropriate definitions
+				 (subst (spec-classes parent) 'all
+					(subst-unless-nil ; only substitute spinors & vectors if provided
+					 (list spinor) 'spinor
+					 (subst-unless-nil 
+					  (list vector) 'vector
+					  (subst versors 'versor 
+						 (rest methdef))))))
+	    for macro = (case (length classes) ; pick the right macro to define each method
+			  (1 'defgamethods1)
+			  (2 'defgamethods2)
+			  (3 'defgamethods3))
+	    unless (or (and (null vector) (find 'vector methdef)) ; don't collect if VECTOR or SPINOR undefined and 
+		       (and (null spinor) (find 'spinor methdef)))
+	    collect
+	      `(,macro ,method ,@classes))
+       (maxima-shutdown))))
