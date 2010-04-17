@@ -12,22 +12,24 @@
 (defmacro defparent (name dim &key metric spec)
   (let* ((size (expt 2 dim))
 	 (bitmap (apply #'vector (loop for b below size collect b))))
-    `(progn
-       (defclass ,name (parent)
-	 ((coef :initform (make-array ,size :initial-element 0))
-	  (metric :allocation :class
-		  :initform ,(when metric `(make-metric ,metric)))
-	  (dimension :allocation :class
-		     :initform ,dim)
-	  (size :allocation :class
-		:initform ,size)
-	  (revtable :allocation :class
-		    :initform (genrevtable ,dim))
-	  (bitmap :allocation :class
-		  :initform ,bitmap)
-	  (spec :allocation :class
-		:initform ,(when spec `',spec))))
-       (defgfun ,name ,bitmap))))
+    `(defclass ,name (parent)
+       ((coef :initform (make-array ,size :initial-element 0))
+	(metric :allocation :class
+		:initform ,(when metric `(make-metric ,metric)))
+	(dimension :allocation :class
+		   :initform ,dim)
+	(size :allocation :class
+	      :initform ,size)
+	(revtable :allocation :class
+		  :initform (genrevtable ,dim))
+	(bitmap :allocation :class
+		:initform ,bitmap)
+	(spec :allocation :class
+	      :initform ,(when spec `',spec))))))
+(defmacro defparentfun (name dim)
+  (let* ((size (expt 2 dim))
+	 (bitmap (apply #'vector (loop for b below size collect b))))
+    `(defgfun ,name ,bitmap)))
 
 (defun make-lookup (psize bitmap)
   "Make lookup table for specialized GA sub-class"
@@ -54,19 +56,18 @@
   "Define a specialized GA class instance given name & parent class. Parent must have name as a key in it's spec hash table."
   (let ((psize (expt 2 dim))
 	(size (length bitmap)))
-    `(progn
-       (defclass ,child (,parent child)
-	 ((coef :initform (make-array ,size :element-type 'double-float)
-		:type (simple-array double-float (,size))) 
-	  (size :allocation :class
-		:initform ,size)
-	  (bitmap :allocation :class
-		  :initform ,bitmap)
-	  (lookup :allocation :class
-		  :initform (make-lookup ,psize ,bitmap))
-	  (parent :allocation :class
-		  :initform ',parent)))
-       (defchildfun ,child ,bitmap))))
+    `(defclass ,child (,parent child)
+       ((coef :initform (make-array ,size :element-type 'double-float)
+	      :type (simple-array double-float (,size))) 
+	(size :allocation :class
+	      :initform ,size)
+	(bitmap :allocation :class
+		:initform ,bitmap)
+	(lookup :allocation :class
+		:initform ,(make-lookup psize bitmap))
+	(parent :allocation :class
+		:initform ',parent)))))
+
 
 (defmacro defgref (child lookup)
   "Define GREF method for a child class"
@@ -104,11 +105,14 @@
   "Define a specialized GA subspec of symbolic parent class given bitmap"
   `(progn
      ,@(loop for (child bitmap) in spec
-	  collect `(defchild ,child ,parent ,dim ,bitmap))))
+	  collect `(defchild ,child ,parent ,dim ,bitmap)
+	  collect `(defchildfun ,child ,bitmap))))
+
 
 (defmacro defga (parent dim &key metric spec)
   `(progn
      (defparent ,parent ,dim :metric ,metric :spec ,spec)
+     (defparentfun ,parent ,dim)
      (defchildren ,parent ,dim :spec ,spec)
      (defgrefs ,dim ,spec)
      (defgsets ,dim ,spec)))

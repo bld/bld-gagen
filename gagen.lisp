@@ -9,15 +9,15 @@
 	  defgamethodsall2
 	  defgamethodsall))
 
-(defun make-gaobj (sym class)
+(defun make-gaobj (parent sym class)
   "Make symbolic GA object of given symbol and specialized child class"
-  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
-      sym
-      (let* ((tmp (make-instance class))
-	     (ptmp (make-instance (parent tmp))))
-	(loop for b across (bitmap tmp)
-	   do (setf (gref ptmp b) `(gref ,sym ,b)))
-	ptmp)))
+  (let* ((ptmp (make-instance parent))
+	 (bitmap (second (assoc class (spec ptmp)))))
+    (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
+	sym
+	(loop for b across bitmap
+	   do (setf (gref ptmp b) `(gref ,sym ,b))))
+    ptmp))
 
 (defun find-bitmap-test (bbl bitmap)
   "Test if a list of basis bitmaps is in a bitmap"
@@ -52,15 +52,15 @@
   (loop for n from 1 upto num
      collect (build-symbol g (:< n))))
 
-(defmacro defgamethod (fun &rest classes)
+(defmacro defgamethod (parent fun &rest classes)
   "Define a geometric algebra method given name of generic function and list of classes for each argument"
   (let* ((args (make-args (length classes)))
-	 (gaobjs (mapcar #'make-gaobj args classes))
+	 (gaobjs (mapcar #'(lambda (arg class) (make-gaobj parent arg class)) args classes))
 	 (res (apply fun gaobjs))
 	 (resclass (when (typep res 'g)
 		     (find-spec res)))
 	 (reslist (when resclass
-		    (loop for b across (bitmap (make-instance resclass))
+		    (loop for b across (second (assoc resclass (spec res)))
 		       collect (gref res b)))))
     `(defmethod ,fun (,@(mapcar #'list args classes))
        ,(if resclass
@@ -88,6 +88,10 @@
 		    append (loop for class3 in classes3
 			      collect `(defgamethod ,fun ,class1 ,class2 ,class3))))))
 
+(defmacro defgamethods (fun &rest classlists)
+  "Define geometric algebra methods of any number of arguments"
+  `(,(build-symbol defgamethods (:< (length classlists))) ,fun ,@classlists))
+
 (defun spec-classes (class)
   "Return list of classes in the spec of object of given class"
   (mapcar #'first (spec (make-instance class))))
@@ -107,8 +111,8 @@
 
 ;; Table of BLD-GA methods that can be auto-generated
 (defparameter *gamethods-table*
-  '((+g2 all all)
-    (-g2 all all)
+  '((g2+ all all)
+    (g2+ all all)
     (*gs all float)
     (/gs all float)
     (*o2 all all)
@@ -129,8 +133,9 @@
 (defun find-versors (parent)
   "Return a list of versor child-classes given a parent class"
   (loop for spec in (spec-classes parent)
-     when (or (every #'evenp (grades (make-gaobj 'a spec)))
-	      (every #'oddp (grades (make-gaobj 'a spec))))
+     for grades = (grades (make-gaobj parent 'a spec))
+     when (or (every #'evenp grades)
+	      (every #'oddp grades))
      collect spec))
 
 (defun simp (expr)
@@ -150,20 +155,13 @@
        (maxima-start)
        ,@(loop for methdef in *gamethods-table* ; loop through method definitions
 	    for method = (first methdef)
-	    for classes = (subst '(float) 'float ; replacing keywords with appropriate definitions
-				 (subst (spec-classes parent) 'all
-					(subst-unless-nil ; only substitute spinors & vectors if provided
-					 (list spinor) 'spinor
-					 (subst-unless-nil 
-					  (list vector) 'vector
-					  (subst versors 'versor 
-						 (rest methdef))))))
-	    for macro = (case (length classes) ; pick the right macro to define each method
-			  (1 'defgamethods1)
-			  (2 'defgamethods2)
-			  (3 'defgamethods3))
-	    unless (or (and (null vector) (find 'vector methdef)) ; don't collect if VECTOR or SPINOR undefined and 
-		       (and (null spinor) (find 'spinor methdef)))
-	    collect
-	      `(,macro ,method ,@classes))
+	    for classlists = (subst '(float) 'float ; replacing keywords with appropriate definitions
+				    (subst (spec-classes parent) 'all
+					   (subst-unless-nil ; only substitute spinors & vectors if provided
+					    (list spinor) 'spinor
+					    (subst-unless-nil 
+					     (list vector) 'vector
+					     (subst versors 'versor 
+						    (rest methdef))))))
+	    collect `(defgamethods ,method ,@classlists))
        (maxima-shutdown))))
