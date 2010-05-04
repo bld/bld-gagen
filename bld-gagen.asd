@@ -6,11 +6,8 @@
   :author "Benjamin L. Diedrich <ben@solarsails.info>"
   :version "0.0.1"
   :maintainer "Benjamin L. Diedrich <ben@solarsails.info>"
-  :license "MIT"
-  :description "Geometric algebra generator"
-  :depends-on ("bld-ga")
+  :license "GPLv2"
+  :description "Write optimized code for specific geometric algebras"
+  :depends-on ("bld-utils" "bld-ga" "bld-sym")
   :components
-  ((:file "package")
-   (:file "mvgen" :depends-on ("package"))
-   (:file "gagen" :depends-on ("mvgen")))
-  :depends-on ("bld-utils" "bld-ga" "bld-maxima"))
+  ((:file "gawrite")))
