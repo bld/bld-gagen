@@ -31,4 +31,4 @@
 		  :license license
 		  :description description
 		  :gacode (list (write-gamethod 'e3 '*x2 spec 've3 've3))
-		  :exports (list 
+		  :exports (list '*x2)))

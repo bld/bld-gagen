@@ -300,4 +300,4 @@
     (write-ga-file (format nil "~a/~a" path asdfile) asd)
     (write-ga-file (format nil "~a/~a" path pkgfile) pkg)
     (write-ga-file (format nil "~a/~a" path mvfile) mv)
-    (write-ga-file (format nil "~a/~a" path gafile) (append ga extragacode))))
+    (write-ga-file (format nil "~a/~a" path gafile) (append ga gacode))))
