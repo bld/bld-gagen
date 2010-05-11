@@ -1,4 +1,0 @@
-
-(DEFPACKAGE BLD-E3
-  (:USE :CL :BLD-GA)
-  (:EXPORT :E3 :E3 :SE3 :VE3 :BVE3 :IE3 :RE3 :*X2)) 

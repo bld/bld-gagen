@@ -1,4 +1,0 @@
-
-(DEFPACKAGE BLD-E2
-  (:USE :CL :BLD-GA)
-  (:EXPORT :E2 :E2 :SE2 :VE2 :BVE2 :RE2)) 
