@@ -54,10 +54,7 @@
       (revtable :allocation :class
 		:initform ,(genrevtable dim))
       (bitmap :allocation :class
-	      :initform ,bitmap)
-      (spec :allocation :class
-	    :reader spec
-	    :initform ,(when spec `',spec)))))
+	      :initform ,bitmap))))
 
 (defun write-gfun (class bitmap)
   (let* ((args (loop for b across bitmap
@@ -82,9 +79,7 @@
       (size :allocation :class
 	    :initform ,size)
       (bitmap :allocation :class
-	      :initform ,bitmap)
-      (lookup :allocation :class
-	      :initform ,(make-lookup psize bitmap)))))	      
+	      :initform ,bitmap))))
 
 (defun write-children (parent dim spec)
   (loop for (child bitmap) in spec
@@ -134,13 +129,26 @@
 
 (defun make-gaobj (parent sym class spec)
   "Make symbolic GA object of given symbol and specialized child class"
-  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
+#|  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
       sym
       (let ((ptmp (make-instance parent))
 	    (bitmap (specref class spec)))
         (loop for b across bitmap
            do (setf (gref ptmp b) `(gref ,sym ,b)))
-	ptmp)))
+	ptmp)))|#
+  (cond
+    ((or (equal class 'float) (equal class 'integer) (equal class 'number)) sym)
+    ((and (listp class)
+	  (equal (first class) 'list)
+	  (numberp (second class)))
+     (let ((len (second class)))
+       (loop for i below len
+	  collect `(elt ,sym ,i))))
+    ((and (listp class)
+	  (equal (first class) 'hash-table))
+     (apply #'make-hash (loop for k in (rest class)
+			   collect k
+			   collect `(gethash ,k ,sym))))))
 
 (defun make-gaobjs (parent args classes spec)
   (mapcar #'(lambda (arg class) (make-gaobj parent arg class spec)) args classes))
@@ -192,6 +200,28 @@
 	    `(make-instance ',resclass :coef (vector ,@reslist))
 	    res))))
 
+(defun write-gamethod2 (parent fun spec &rest classes)
+  "Write code for optimized GA method of GA objects and scalars, including results that are GA objects, hash tables, lists, and atoms"
+  (let* ((args (make-args (length classes)))
+	 (gaobjs (make-gaobjs parent args classes spec))
+	 (res (apply fun gaobjs))
+	 (resclass (if (typep res 'g)
+		       (find-spec res spec)
+		       (type-of res)))
+	 (reslist (when (typep res 'g)
+		    (loop for b across (specref resclass spec)
+		       collect (gref res b)))))
+    `(defmethod ,fun (,@(mapcar #'list args classes))
+       ,(typecase res
+	 (g `(make-instance ',resclass :coef (vector ,@reslist)))
+	 (hash-table
+	  `(make-hash ,@(loop for k being the hash-keys in res
+			   for v being the hash-values in res
+			   collect k
+			   collect v)))
+	 (list `(list ,@res))
+	 (t res)))))
+
 (defun write-gamethods1 (parent fun spec classes)
   "Write geometric algebra methods of one argument for the given list of classes"
   (loop for class in classes
@@ -234,15 +264,15 @@
     (*gs all float)
     (/gs all float)
     (*o2 all all)
-    (*o3 all all all)
+;;    (*o3 all all all)
     (*g2 all all)
-    (*g3 all all all)
+;;    (*g3 all all all)
     (*i2 all all)
-    (*i3 all all all)
+;;    (*i3 all all all)
     (*c2 all all)
-    (*c3 all all all)
+;;    (*c3 all all all)
     (*s2 all all)
-    (*s3 all all all)
+;;    (*s3 all all all)
     (revg all)
     (invv versor)
     (refl all vector)
