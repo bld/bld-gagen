@@ -6,7 +6,7 @@
   :author "Benjamin L. Diedrich <ben@solarsails.info>"
   :version "0.0.1"
   :maintainer "Benjamin L. Diedrich <ben@solarsails.info>"
-  :license "GPLv2"
+  :license "GPLv3"
   :description "Write optimized code for specific geometric algebras"
   :depends-on ("bld-utils" "bld-ga" "bld-sym")
   :components

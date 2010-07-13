@@ -129,26 +129,13 @@
 
 (defun make-gaobj (parent sym class spec)
   "Make symbolic GA object of given symbol and specialized child class"
-#|  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
+  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
       sym
       (let ((ptmp (make-instance parent))
 	    (bitmap (specref class spec)))
         (loop for b across bitmap
            do (setf (gref ptmp b) `(gref ,sym ,b)))
-	ptmp)))|#
-  (cond
-    ((or (equal class 'float) (equal class 'integer) (equal class 'number)) sym)
-    ((and (listp class)
-	  (equal (first class) 'list)
-	  (numberp (second class)))
-     (let ((len (second class)))
-       (loop for i below len
-	  collect `(elt ,sym ,i))))
-    ((and (listp class)
-	  (equal (first class) 'hash-table))
-     (apply #'make-hash (loop for k in (rest class)
-			   collect k
-			   collect `(gethash ,k ,sym))))))
+	ptmp)))
 
 (defun make-gaobjs (parent args classes spec)
   (mapcar #'(lambda (arg class) (make-gaobj parent arg class spec)) args classes))
