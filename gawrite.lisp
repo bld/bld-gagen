@@ -1,7 +1,7 @@
 ;; Use BLD-GAGEN to WRITE lisp code that can be standalone compiled without Maxima or all the dependencies
 
 (defpackage :bld-gagen
-  (:use :cl :bld-ga :bld-sym :bld-utils))
+  (:use :cl :bld-ga :bld-sym :bld-utils :bld-maxima))
 
 (in-package :bld-gagen)
 
@@ -174,12 +174,17 @@
 
 (defun write-gamethod (parent fun spec &rest classes)
   "Define a geometric algebra method given name of generic function and list of classes for each argument"
-  (let* ((args (make-args (length classes)))
-	 (gaobjs (make-gaobjs parent args classes spec))
-	 (res (apply fun gaobjs))
-	 (resclass (when (typep res 'g)
+  (let* ((args (make-args (length classes))) ; argument list
+	 (gaobjs (make-gaobjs parent args classes spec)) ; GA objects corresponding to arg list
+	 (res-tmp (delay (apply fun gaobjs))) ; result before simplification
+	 (res (if (typep res-tmp 'g) ; result after simplification
+		  (make-instance ; result is GA object...
+		   (type-of res-tmp)
+		   :coef (apply #'vector (apply #'simp-exprs (coerce (coef res-tmp) 'list))))
+		  (simp res-tmp))) ; ...otherwise scalar
+	 (resclass (when (typep res 'g) ; class of the result, nil if non-GA object (scalar)
 		     (find-spec res spec)))
-	 (reslist (when resclass
+	 (reslist (when resclass ; list of coefficients corresponding to result class
 		    (loop for b across (specref resclass spec)
 		       collect (gref res b)))))
     `(defmethod ,fun (,@(mapcar #'list args classes))
