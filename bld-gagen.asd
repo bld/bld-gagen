@@ -10,4 +10,6 @@
   :description "Write optimized code for specific geometric algebras"
   :depends-on ("bld-utils" "bld-ga" "bld-sym" "bld-maxima")
   :components
-  ((:file "gawrite")))
+  ((:file "package")
+   (:file "gawrite" :depends-on ("package"))
+   (:file "gagen" :depends-on ("gawrite" "package"))))

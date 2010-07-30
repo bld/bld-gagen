@@ -1,8 +1,5 @@
 ;; Use BLD-GAGEN to WRITE lisp code that can be standalone compiled without Maxima or all the dependencies
 
-(defpackage :bld-gagen
-  (:use :cl :bld-ga :bld-sym :bld-utils :bld-maxima))
-
 (in-package :bld-gagen)
 
 ;; Helper function
@@ -67,11 +64,6 @@
   (loop for (child bitmap) in spec
      collect (write-gfun child bitmap)))
 
-(defun make-lookup (psize bitmap)
-  "Make lookup table for specialized GA sub-class"
-  (apply #'vector (loop for i below psize
-                     collect (position i bitmap))))
-
 (defun write-child (child parent dim bitmap 
 		    &aux (psize (expt 2 dim)) (size (length bitmap)))
   `(defclass ,child (,parent)
@@ -86,39 +78,39 @@
      unless (equal child parent)
      collect (write-child child parent dim bitmap)))
 
-(defun write-gref (child lookup)
+(defun write-gref (child dim bitmap &aux (psize (expt 2 dim)))
   `(defmethod gref ((g ,child) (bb integer))
      (case bb
-       ,@(loop for posbb across lookup 
-	    for i = 0 then (1+ i)
+       ,@(loop for i below psize
+	    for posbb = (position i bitmap)
 	    if posbb
 	    collect `(,i (aref (coef g) ,posbb))
 	    else collect `(,i 0)))))
 
-(defun write-grefs (psize spec)
+(defun write-grefs (dim spec)
   (loop for (child bitmap) in spec
-     collect (write-gref child (make-lookup psize bitmap))))
+     collect (write-gref child dim bitmap)))
 
-(defun write-gset (child lookup)
+(defun write-gset (child dim bitmap &aux (psize (expt 2 dim)))
   `(defmethod gset ((g ,child) (bb integer) (val number))
      (case bb
-       ,@(loop for posbb across lookup
-	    for i = 0 then (1+ i)
+       ,@(loop for i below psize
+	    for posbb = (position i bitmap)
 	    when posbb
 	    collect `(,i (setf (aref (coef g) ,posbb) val)))
        (t (error (format nil ,(format nil "Basis bitmap ~~b doesn't exist in GA object of type ~a." child) bb))))))
 
-(defun write-gsets (psize spec)
+(defun write-gsets (dim spec)
   (loop for (child bitmap) in spec
-     collect (write-gset child (make-lookup psize bitmap))))
+     collect (write-gset child dim bitmap)))
 
 (defun write-mv-code (parent dim pkgname spec &key metric &aux (psize (expt 2 dim)))
   `((in-package ,(make-keyword pkgname))
     ,(write-parent parent dim :metric metric :spec spec)
     ,@(write-children parent dim spec)
     ,@(write-child-gfuns spec)
-    ,@(write-grefs psize spec)
-    ,@(write-gsets psize spec)))
+    ,@(write-grefs dim spec)
+    ,@(write-gsets dim spec)))
 
 (defun write-ga-file (filespec code)
   (with-open-file (stream filespec :direction :output)
@@ -191,28 +183,6 @@
        ,(if resclass
 	    `(make-instance ',resclass :coef (vector ,@reslist))
 	    res))))
-
-(defun write-gamethod2 (parent fun spec &rest classes)
-  "Write code for optimized GA method of GA objects and scalars, including results that are GA objects, hash tables, lists, and atoms"
-  (let* ((args (make-args (length classes)))
-	 (gaobjs (make-gaobjs parent args classes spec))
-	 (res (apply fun gaobjs))
-	 (resclass (if (typep res 'g)
-		       (find-spec res spec)
-		       (type-of res)))
-	 (reslist (when (typep res 'g)
-		    (loop for b across (specref resclass spec)
-		       collect (gref res b)))))
-    `(defmethod ,fun (,@(mapcar #'list args classes))
-       ,(typecase res
-	 (g `(make-instance ',resclass :coef (vector ,@reslist)))
-	 (hash-table
-	  `(make-hash ,@(loop for k being the hash-keys in res
-			   for v being the hash-values in res
-			   collect k
-			   collect v)))
-	 (list `(list ,@res))
-	 (t res)))))
 
 (defun write-gamethods1 (parent fun spec classes)
   "Write geometric algebra methods of one argument for the given list of classes"

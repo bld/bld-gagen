@@ -2,6 +2,6 @@ Package to generate efficient geometric algebras
 ================================================
 
 Uses symbolic BLD-GA to expand expressions of sub-classes to generate
-fast code for the basic geometric algebra functions. WRITE-GA-FILES is
-the primary function, used to create a set of files with a specified
-geometric algebra and methods between specific sub-classes for speed.
+fast code for the basic geometric algebra functions. Uses macros to
+generate code. Also has code-generation functions, which are
+optional. Packages using this can define fast functions on-the-fly.
