@@ -1,5 +1,5 @@
 (defpackage :bld-gagen
-  (:use :cl :bld-ga :bld-sym :bld-utils :bld-maxima)
+  (:use :cl :bld-ga :bld-utils :bld-maxima)
   (:export :defchildfun
 	   :defchildfuns
 	   :defchild

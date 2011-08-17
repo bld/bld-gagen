@@ -8,7 +8,7 @@
   :maintainer "Benjamin L. Diedrich <ben@solarsails.info>"
   :license "MIT"
   :description "Write optimized code for specific geometric algebras"
-  :depends-on ("bld-utils" "bld-ga" "bld-sym" "bld-maxima")
+  :depends-on ("bld-utils" "bld-ga" "bld-maxima")
   :components
   ((:file "package")
    (:file "gawrite" :depends-on ("package"))
