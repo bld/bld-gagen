@@ -121,7 +121,7 @@
 
 (defun make-gaobj (parent sym class spec)
   "Make symbolic GA object of given symbol and specialized child class"
-  (if (or (equal class 'float) (equal class 'integer) (equal class 'number))
+  (if (or (equal class 'integer) (equal class 'number))
       sym
       (let ((ptmp (make-instance parent))
 	    (bitmap (specref class spec)))
@@ -220,21 +220,11 @@
     (write-gamethods2 parent fun spec classes classes)))
 
 (defparameter *gamethods-table*
-  '((gs+ all float)
+  '((gs+ all number)
     (g2+ all all)
     (g2+ all all)
-    (bld-gen::two+ all all)
-    (bld-gen::two+ all float)
-    (bld-gen::two+ float all)
-    (bld-gen::one- all)
-    (bld-gen::two- all all)
-    (bld-gen::two- all float)
-    (bld-gen::two- float all)
-    (*gs all float)
-    (bld-gen::two* all float)
-    (bld-gen::two* float all)
-    (/gs all float)
-    (bld-gen::two/ all float)
+    (*gs all number)
+    (/gs all number)
     (*o2 all all)
 ;;    (*o3 all all all)
     (*g2 all all)
@@ -260,7 +250,17 @@
     (unitg all)
     (oneg all)
     (square all)
-    (cube all)))
+    (cube all)
+    (bld-gen::two+ all all)
+    (bld-gen::two+ all number)
+    (bld-gen::two+ number all)
+    (bld-gen::one- all)
+    (bld-gen::two- all all)
+    (bld-gen::two- all number)
+    (bld-gen::two- number all)
+    (bld-gen::two* all number)
+    (bld-gen::two* number all)
+    (bld-gen::two/ all number)))
 
 (defun find-versors (parent spec)
   "Return a list of versor child-classes given a parent class"
@@ -279,7 +279,7 @@
 (defun write-gamethodsall (parent spec &key vector spinor)
   (let ((versors (find-versors parent spec)))
     (loop for (method . def) in *gamethods-table*
-       for classlists = (subst '(float) 'float
+       for classlists = (subst '(number) 'number
 			       (subst (spec-classes spec) 'all
 				      (subst-unless-nil
 				       (list spinor) 'spinor
