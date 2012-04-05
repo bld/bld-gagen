@@ -252,6 +252,7 @@
 (defparameter *gamethods-table*
   '((*o2 all all)
     (*g2 all all)
+    (*g3 all all all)
     (*i2 all all)
     (*c2 all all)
     (*s2 all all)
