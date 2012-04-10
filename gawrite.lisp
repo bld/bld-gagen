@@ -316,10 +316,27 @@ Generic arithmetic methods from BLD-GEN are also listed.")
 					       def)))))
        append (apply #'write-gamethods parent method spec classlists))))
 
+(defun write-graden-n (parent spec grade)
+  "Write method for GRADEN specialized on the grade N to return a GA object from SPEC"
+  (let* ((gaobj (make-gaobj parent 'g parent spec))
+	 (res (graden gaobj grade))
+	 (resclass (find-spec res spec))
+	 (reslist (when resclass
+		    (loop for b across (specref resclass spec)
+		       collect (gref res b)))))
+    `(defmethod graden ((g ,parent) (n (eql ,grade)))
+       (make-instance ',resclass :coef (vector ,@reslist)))))
+
+(defun write-graden (parent spec)
+  "Write GRADEN methods given PARENT class and SPEC"
+  (loop for grade upto (dimension (make-instance parent))
+     collect (write-graden-n parent spec grade)))
+
 (defun write-ga-code (parent spec pkgname &key vector spinor)
   "Generate ga.lisp code"
   `((in-package ,(make-keyword pkgname))
-    ,@(write-gamethodsall parent spec :vector vector :spinor spinor)))
+    ,@(write-gamethodsall parent spec :vector vector :spinor spinor)
+    ,@(write-graden parent spec)))
 
 ;; Put it all together
 
