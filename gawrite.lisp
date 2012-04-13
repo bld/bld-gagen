@@ -111,7 +111,7 @@
 
 (defun write-gset (child dim bitmap &aux (psize (expt 2 dim)))
   "Define gset method for child class."
-  `(defmethod gset ((g ,child) (bb integer) (val number))
+  `(defmethod gset ((g ,child) (bb integer) val)
      (case bb
        ,@(loop for i below psize
 	    for posbb = (position i bitmap)
