@@ -12,22 +12,18 @@
 
 (defun write-asd-code (package &key author version maintainer license description)
   "Generate code for the .asd file given package name and, optionally, other fields."
-  (let ((syspackage (make-keyword (build-symbol (:< package) .system))))
-    `((defpackage ,syspackage
-	(:use :asdf :cl))
-      (in-package ,syspackage)
-      (defsystem ,(make-keyword package)
-	:name ,(format nil "~a" package)
-	,@(when author `(:author ,author))
-	,@(when version `(:version ,version))
-	,@(when maintainer `(:maintainer ,maintainer))
-	,@(when license `(:license ,license))
-	,@(when description `(:description ,description))
-	:depends-on ("bld-gen" "bld-ga")
-	:components
-	((:file "package")
-	 (:file "mv" :depends-on ("package"))
-	 (:file "ga" :depends-on ("mv")))))))
+  `((asdf:defsystem ,(make-keyword package)
+      :name ,(format nil "~a" package)
+      ,@(when author `(:author ,author))
+      ,@(when version `(:version ,version))
+      ,@(when maintainer `(:maintainer ,maintainer))
+      ,@(when license `(:license ,license))
+      ,@(when description `(:description ,description))
+      :depends-on ("bld-gen" "bld-ga")
+      :components
+      ((:file "package")
+       (:file "mv" :depends-on ("package"))
+       (:file "ga" :depends-on ("mv"))))))
 
 ;; Package file code
 
@@ -63,7 +59,10 @@
       (revtable :allocation :class
 		:initform ,(genrevtable dim))
       (bitmap :allocation :class
-	      :initform ,bitmap))))
+	      :initform ,bitmap)
+      (spec :allocation :class
+	    :initform ',spec
+	    :reader spec))))
 
 (defun write-gfun (class bitmap)
   "Generate function to create parent class."
@@ -358,15 +357,19 @@ DESCRIPTION (optional)
 GACODE (optional): list of additional code to append to ga.lisp file
 EXPORTS (optional): export list of additional code"
   (assert (and package parent dim spec path)) ; these args MUST be specified
+  (print "Writing ASD file")
   (let ((asd (write-asd-code package :author author :version version :maintainer maintainer :license license :description description))
-	(pkg (write-package-code package parent spec exports))
-	(mv (write-mv-code parent dim package spec :metric metric))
-	(ga (write-ga-code parent spec package :vector vector :spinor spinor))
-	(asdfile (concatenate 'string (string-downcase (string package)) ".asd"))
-	(pkgfile "package.lisp")
-	(mvfile "mv.lisp")
+	(asdfile (concatenate 'string (string-downcase (string package)) ".asd")))
+    (write-ga-file (format nil "~a/~a" path asdfile) asd))
+  (print "Writing package file")
+  (let ((pkg (write-package-code package parent spec exports))
+	(pkgfile "package.lisp"))
+    (write-ga-file (format nil "~a/~a" path pkgfile) pkg))
+  (print "Writing MV file")
+  (let ((mv (write-mv-code parent dim package spec :metric metric))
+	(mvfile "mv.lisp"))
+    (write-ga-file (format nil "~a/~a" path mvfile) mv))
+  (print "Writing GA file")
+  (let ((ga (write-ga-code parent spec package :vector vector :spinor spinor))
 	(gafile "ga.lisp"))
-    (write-ga-file (format nil "~a/~a" path asdfile) asd)
-    (write-ga-file (format nil "~a/~a" path pkgfile) pkg)
-    (write-ga-file (format nil "~a/~a" path mvfile) mv)
     (write-ga-file (format nil "~a/~a" path gafile) (append ga gacode))))
