@@ -1,5 +1,5 @@
 (defpackage :bld-gagen
-  (:use :cl :bld-ga :bld-utils :bld-maxima)
+  (:use :cl :bld-ga :bld-utils :bld-gensym)
   (:shadowing-import-from :bld-gensym
                           + - * / expt
                           sin cos tan
