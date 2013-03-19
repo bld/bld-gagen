@@ -142,7 +142,7 @@
 
 (defun make-gaobj (parent sym class spec)
   "Make symbolic GA object of given symbol and specialized child class"
-  (if (or (equal class 'integer) (equal class 'number))
+  (if (or (equal class 'integer) (equal class 'number) (equal class t))
       sym
       (let ((ptmp (make-instance parent))
 	    (bitmap (specref class spec)))
@@ -186,18 +186,25 @@
   (loop for n from 1 upto num
      collect (build-symbol (:< sym) (:< n))))
 
+(defun make-result (result-temp)
+  "Generate resulting object from temporary"
+  (cond
+    ((typep result-temp 'g) ; result is a GA object
+     (make-instance
+      (type-of result-temp)
+      :coef (apply #'vector (apply #'simp-exprs (coerce (coef result-temp) 'list)))))
+    (t (simp result-temp)))) ; otherwise scalar
+
 (defun write-gamethod (parent fun spec &rest classes)
   "Define a geometric algebra method given name of generic function and list of classes for each argument"
   (let* ((args (make-args (length classes))) ; argument list
 	 (gaobjs (make-gaobjs parent args classes spec)) ; GA objects corresponding to arg list
 	 (res-tmp (delay (apply fun gaobjs))) ; result before simplification
-	 (res (if (typep res-tmp 'g) ; result after simplification
-		  (make-instance ; result is GA object...
-		   (type-of res-tmp)
-		   :coef (apply #'vector (apply #'simp-exprs (coerce (coef res-tmp) 'list))))
-		  (simp res-tmp))) ; ...otherwise scalar
+	 (res (make-result  res-tmp)) ; result after simplification
 	 (resclass (when (typep res 'g) ; class of the result, nil if non-GA object (scalar)
-		     (find-spec res spec)))
+		     (if (find fun *transformers*) ; if FUN is a transformer, result class is class of 1st argument
+			 (first classes)
+			 (find-spec res spec))))
 	 (reslist (when resclass ; list of coefficients corresponding to result class
 		    (loop for b across (specref resclass spec)
 		       collect (gref res b)))))
@@ -287,6 +294,8 @@ class is one of all for all GA types (including scalars), number for scalar numb
 Second class is given for functions with more than 1 argument.
 Generic arithmetic methods from BLD-GEN are also listed.")
 
+(defparameter *transformers* '(rot spin refl) "Transformation methods, which return objects of the same class as the 1st argument")
+
 (defun find-versors (parent spec)
   "Return a list of versor child-classes given a parent class"
   (loop for class in (spec-classes spec)
@@ -305,7 +314,7 @@ Generic arithmetic methods from BLD-GEN are also listed.")
   "Generate code for all GA methods in *gamethods-table* given parent class, sub-class spec, vector class, and spinor class."
   (let ((versors (find-versors parent spec)))
     (loop for (method . def) in *gamethods-table*
-       for classlists = (subst '(number) 'number
+       for classlists = (subst '(t) 'number
 			       (subst (spec-classes spec) 'all
 				      (subst-unless-nil
 				       (list spinor) 'spinor
