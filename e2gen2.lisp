@@ -2,14 +2,12 @@
 
 (in-package :bld-gagen)
 
-;;;(defg e2 2)
-
 (defparameter *e2spec*
-  '((e2 #(0 1 2 3)) ; multivector (i.e. parent) class
-    (se2 #(#b0)) ; scalar
-    (ve2 #(#b1 #b10)) ; vector
-    (bve2 #(#b11)) ; bivector/pseudoscalar
-    (re2 #(#b0 #b11))))
+  '((e2 #(s e1 e2 e1e2)) ; multivector (i.e. parent) class
+    (se2 #(s)) ; scalar
+    (ve2 #(e1 e2)) ; vector
+    (bve2 #(e1e2)) ; bivector/pseudoscalar
+    (re2 #(s e1e2))))
 
 (write-ga-files
  :package 'bld-e2

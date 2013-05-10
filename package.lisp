@@ -1,6 +1,7 @@
 (defpackage :bld-gagen
   (:use :cl :bld-ga :bld-utils :bld-gensym)
-  (:shadowing-import-from :bld-gensym
+  (:import-from :alexandria make-keyword)
+  (:shadowing-import-from :bld-gen
                           + - * / expt
                           sin cos tan
                           atan asin acos
