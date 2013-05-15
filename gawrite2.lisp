@@ -74,24 +74,20 @@
 	      :initform ',spec
 	      :reader spec)))))
 
-(defun write-gfun (class)
-  "Generate function to create parent class."
-  (let ((args (map 'list #'(lambda (bb) (intern (string bb))) (basisblades (make-instance class))))
-	(args-key (map 'list #'identity (basisbladekeys (make-instance class)))))
+(defun write-gfun (class &optional (bbs (basisblades (make-instance class))))
+  "Generate function to create class given vector of basis blades"
+  (let* ((args (map 'list #'(lambda (bb) (intern (string bb))) bbs))
+	 (args-key (map 'list #'(lambda (bb) (list bb 0)) args)))
     `(defun ,class (&key ,@args-key)
        (make-instance ',class :coef (vector ,@args)))))
-
-(defun write-child-gfun (child bitmap)
-  `(defun ,child (&key ,@
-  
 
 (defun write-child-gfuns (spec)
   "Generate function to create child classes."
   (loop for (child bitmap) in spec
      collect (write-gfun child bitmap)))
 
-(defun write-child (child parent dim bitmap 
-		    &aux (psize (expt 2 dim)) (size (length bitmap)))
+(defun write-child (child parent bitmap 
+		    &aux (psize (size (make-instance parent))) (size (length bitmap)))
   "Generate one child class definition."
   `(defclass ,child (,parent)
      ((coef :initform (make-array ,size :initial-element 0))
@@ -100,50 +96,47 @@
       (bitmap :allocation :class
 	      :initform ,bitmap))))
 
-(defun write-children (parent dim spec)
+(defun write-children (parent spec)
   "Generate class definitions for child classes."
   (loop for (child bitmap) in spec
      unless (equal child parent)
-     collect (write-child child parent dim bitmap)))
+     collect (write-child child parent bitmap)))
 
-(defun write-gref (child dim bitmap &aux (psize (expt 2 dim)))
+(defun write-gref (child bitmap)
   "Define gref method for a child class."
-  `(defmethod gref ((g ,child) (bb integer))
+  `(defmethod gref ((g ,child) (bb symbol))
      (case bb
-       ,@(loop for i below psize
-	    for posbb = (position i bitmap)
-	    if posbb
-	    collect `(,i (aref (coef g) ,posbb))
-	    else collect `(,i 0)))))
-
-(defun write-grefs (dim spec)
+       ,@(loop for bb across bitmap
+	    for i = 0 then (incf i)
+	    collect `(,bb (aref (coef g) ,i)))
+       (t 0))))
+		
+(defun write-grefs (spec)
   "Define gref methods for child classes."
   (loop for (child bitmap) in spec
-     collect (write-gref child dim bitmap)))
+     collect (write-gref child bitmap)))
 
-(defun write-gset (child dim bitmap &aux (psize (expt 2 dim)))
-  "Define gset method for child class."
-  `(defmethod gset ((g ,child) (bb integer) val)
+(defun write-gset (child bitmap)
+  `(defmethod gset ((g ,child) (bb symbol) val)
      (case bb
-       ,@(loop for i below psize
-	    for posbb = (position i bitmap)
-	    when posbb
-	    collect `(,i (setf (aref (coef g) ,posbb) val)))
+       ,@(loop for bb across bitmap
+	    for i = 0 then (incf i)
+	    collect `(,bb (setf (aref (coef g) ,i) val)))
        (t (error (format nil ,(format nil "Basis bitmap ~~b doesn't exist in GA object of type ~a." child) bb))))))
 
-(defun write-gsets (dim spec)
+(defun write-gsets (spec)
   "Define gset methods for child classes."
   (loop for (child bitmap) in spec
-     collect (write-gset child dim bitmap)))
+     collect (write-gset child bitmap)))
 
 (defun write-mv-code (parent dim pkgname spec &key metric &aux (psize (expt 2 dim)))
   "Generate mv.lisp code."
   `((in-package ,(make-keyword pkgname))
     ,(write-parent parent spec)
-    ,@(write-children parent dim spec)
+    ,@(write-children parent spec)
     ,@(write-child-gfuns spec)
-    ,@(write-grefs dim spec)
-    ,@(write-gsets dim spec)))
+    ,@(write-grefs spec)
+    ,@(write-gsets spec)))
 
 (defun write-ga-file (filespec code)
   "Write a list of code definitions to specified file spec."
