@@ -20,10 +20,11 @@
       ,@(when license `(:license ,license))
       ,@(when description `(:description ,description))
       :depends-on ("bld-gen" "bld-ga")
+      :serial t
       :components
       ((:file "package")
-       (:file "mv" :depends-on ("package"))
-       (:file "ga" :depends-on ("mv"))))))
+       (:file "mv"))
+       (:file "ga"))))
 
 ;; Package file code
 
@@ -47,32 +48,40 @@
 
 (defun write-parent (parent spec)
   "Generate parent class definition."
-  (let* ((pobj (make-instance parent))
-	 (pmetric (metric pobj))
-	 (metric (if (typep pmetric 'metric)
-		     (make-metric (slot-value pmetric 'matrix))
-		     pmetric)))
-    `(defclass ,parent (g)
-       ((coef :initform (make-array ,(size pobj) :initial-element 0))
-	(metric :allocation :class
-		:initform ,(when metric `(make-metric ,metric)))
-	(dimension :allocation :class
-		   :initform ,(dimension pobj))
-	(size :allocation :class
-	      :initform ,(size pobj))
-	(revtable :allocation :class
-		  :initform ,(revtable pobj))
-	(bitmap :allocation :class
-		:initform ,(bitmap pobj))
-	(unitvectors :allocation :class
-		     :initform ,(unitvectors pobj))
-	(basisblades :allocation :class
-		     :initform ,(basisblades pobj))
-	(basisbladekeys :allocation :class
-			:initform ,(basisbladekeys pobj))
-	(spec :allocation :class
-	      :initform ',spec
-	      :reader spec)))))
+  (with-slots ((pmetric metric) 
+	       dimension 
+	       size 
+	       revtable 
+	       bitmap 
+	       (punitvectors unitvectors)
+	       (pbasisblades basisblades) 
+	       basisbladekeys) (make-instance parent)
+    (let ((metric (if (typep pmetric 'metric)
+		      (slot-value pmetric 'matrix)
+		      pmetric))
+	  (unitvectors (mapcar #'(lambda (uv) (intern (string uv))) punitvectors))
+	  (basisblades (mapcar #'(lambda (uv) (intern (string uv))) pbasisblades)))
+      `(defclass ,parent (g)
+	 ((coef :initform (make-array ,size :initial-element 0))
+	  (metric :allocation :class
+		  :initform (make-metric ,metric))
+	  (dimension :allocation :class
+		   :initform ,dimension)
+	  (size :allocation :class
+		:initform ,size)
+	  (revtable :allocation :class
+		    :initform ,revtable)
+	  (bitmap :allocation :class
+		  :initform ,bitmap)
+	  (unitvectors :allocation :class
+		       :initform ,unitvectors)
+	  (basisblades :allocation :class
+		       :initform ,basisblades)
+	  (basisbladekeys :allocation :class
+			  :initform ,basisbladekeys)
+	  (spec :allocation :class
+		:initform ',spec
+		:reader spec))))))
 
 (defun write-gfun (class &optional (bbs (basisblades (make-instance class))))
   "Generate function to create class given vector of basis blades"
@@ -86,21 +95,29 @@
   (loop for (child bitmap) in spec
      collect (write-gfun child bitmap)))
 
-(defun write-child (child parent bitmap 
-		    &aux (psize (size (make-instance parent))) (size (length bitmap)))
+(defun write-child (child parent bitmap basisblades)
   "Generate one child class definition."
-  `(defclass ,child (,parent)
-     ((coef :initform (make-array ,size :initial-element 0))
-      (size :allocation :class
-	    :initform ,size)
-      (bitmap :allocation :class
-	      :initform ,bitmap))))
+  (let ((size (length bitmap)))
+    `(defclass ,child (,parent)
+       ((coef :initform (make-array ,size :initial-element 0))
+	(size :allocation :class
+	      :initform ,size)
+	(bitmap :allocation :class
+		:initform ,bitmap)
+	(basisblades :allocation :class
+		     :initform ',basisblades)))))
 
 (defun write-children (parent spec)
   "Generate class definitions for child classes."
-  (loop for (child bitmap) in spec
-     unless (equal child parent)
-     collect (write-child child parent bitmap)))
+  (let* ((pobj (make-instance parent))
+	 (pbitmap (bitmap pobj))
+	 (pbasisblades (mapcar #'(lambda (bb) (intern (string bb))) (basisblades pobj))))
+    (loop for (child . basisblades) in spec
+       for bitmap = (apply #'vector 
+			   (loop for bb in basisblades
+			      collect (aref pbitmap (position bb pbasisblades))))
+       unless (equal child parent)
+       collect (write-child child parent bitmap basisblades))))
 
 (defun write-gref (child bitmap)
   "Define gref method for a child class."
