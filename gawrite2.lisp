@@ -6,7 +6,20 @@
 
 (defun specref (class spec)
   "Reference a spec by class, returning the corresponding vector of basis bitmaps."
-  (second (assoc class spec)))
+  (cdr (assoc class spec)))
+
+(defun intern-list (l)
+  (mapcar #'(lambda (li) (intern (string li))) l))
+
+(defun bitmap-from-basisblades (basisblades parent)
+  (let ((pbitmap (bitmap (make-instance parent)))
+	(pbasisblades (intern-list (basisblades parent))))
+    (apply #'vector (loop for bb in basisblades
+		       collect (aref pbitmap (position bb pbasisblades))))))
+
+(defun numberzerop (n)
+  "Test if argument is the number 0"
+  (and (numberp n) (zerop n)))
 
 ;; System definition file
 
@@ -167,10 +180,11 @@
   "Make symbolic GA object of given symbol and specialized child class"
   (if (or (equal class 'integer) (equal class 'number) (equal class t))
       sym
-      (let ((ptmp (make-instance parent))
-	    (bitmap (specref class spec)))
-        (loop for b across bitmap
-           do (setf (gref ptmp b) `(gref ,sym ,b)))
+      (let* ((ptmp (make-instance parent))
+	     (basisblades (specref class spec)))
+        (loop for bb in basisblades
+	   for bbk = (make-keyword bb)
+           do (gset ptmp bbk `(gref ,sym ,bbk)))
 	ptmp)))
 
 (defun make-gaobjs (parent args classes spec)
@@ -181,6 +195,10 @@
   "Test if a list of basis bitmaps is in a bitmap"
   (every #'(lambda (bb) (find bb bitmap)) bbl))
 
+(defun find-basisblades-test (bbl basisblades)
+  "Test if one list of basis blades in contained in another"
+  (every #'(lambda (bb) (find bb basisblades)) bbl))
+
 (defun non-zero-basis-bitmaps (g)
   "Given parent GA object, return a list of basis bitmaps corresponding to non-zero or symbolic coefficients"
   (loop for b across (bitmap g)
@@ -188,21 +206,27 @@
      unless (and (numberp c) (zerop c))
      collect b))
 
+(defun non-zero-basisblades (g)
+  "Collect basisblades that are non-zero"
+  (loopg b c g
+     unless (numberzerop c)
+     collect (intern (string (nth b (basisblades g))))))
+
 (defun find-specs (bbl spec)
-  "Given a list of basis-bitmaps and an alist of specialized GA sub-classes & their bitmaps, return a list of the subclass names contain them"
-  (loop for (name bitmap) in spec
-     when (find-bitmap-test bbl bitmap)
+  "Given a list of basis blades and the specialized GA sub-classes, return a list of the subclass names contain them"
+  (loop for (name . basisblades) in spec
+     when (find-basisblades-test bbl basisblades)
      collect name))
 
 (defun find-spec (g spec)
-  "Given a parent GA object and hash-table of bitmaps, return the hash-table key with corresponding bitmap of minimum length that matched non-zero/symbolic coefficients of the GA object. This is the name of a specialized GA class."
-  (loop for name in (find-specs (non-zero-basis-bitmaps g) spec)
+  "Given a parent GA object and spec, find the specialized GA class is matches."
+  (loop for name in (find-specs (non-zero-basisblades g) spec)
      for namemin = name
      then (if (< (length (specref name spec))
 		 (length (specref namemin spec)))
 	      name
 	      namemin)
-     finally (return namemin )))
+     finally (return namemin)))
 
 (defun make-args (num &optional (sym 'g))
   "Make argument symbols as 'g appended to number"
@@ -229,8 +253,8 @@
 			 (first classes)
 			 (find-spec res spec))))
 	 (reslist (when resclass ; list of coefficients corresponding to result class
-		    (loop for b across (specref resclass spec)
-		       collect (gref res b)))))
+		    (loop for b in (specref resclass spec)
+		       collect (gref res (make-keyword b))))))
     `(defmethod ,fun (,@(mapcar #'list args classes))
        ,(if resclass
 	    `(make-instance ',resclass :coef (vector ,@reslist))
@@ -267,7 +291,7 @@
 
 (defun spec-bitmaps (spec)
   "Return list of bitmap vectors from a spec."
-  (mapcar #'second spec))
+  (mapcar #'cdr spec))
 
 (defun write-gamethodsall1 (parent fun spec)
   "Generate all one-argument methods for given parent class, function, and spec."
