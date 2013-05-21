@@ -36,8 +36,8 @@
       :serial t
       :components
       ((:file "package")
-       (:file "mv"))
-       (:file "ga"))))
+       (:file "mv")
+       (:file "ga")))))
 
 ;; Package file code
 
@@ -378,8 +378,8 @@ Generic arithmetic methods from BLD-GEN are also listed.")
 	 (res (graden gaobj grade))
 	 (resclass (find-spec res spec))
 	 (reslist (when resclass
-		    (loop for b across (specref resclass spec)
-		       collect (gref res b)))))
+		    (loop for b in (specref resclass spec)
+		       collect (gref res (make-keyword b))))))
     `(defmethod graden ((g ,parent) (n (eql ,grade)))
        (make-instance ',resclass :coef (vector ,@reslist)))))
 

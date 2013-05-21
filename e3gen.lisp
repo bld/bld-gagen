@@ -2,15 +2,15 @@
 
 (in-package :bld-gagen)
 
-(defg e3 3)
+;;;(defg e3 3)
 
 (defparameter *e3spec* 
-  '((e3 #(0 1 2 3 4 5 6 7)) ; multivector (i.e. parent) class
-    (se3 #(#b0)) ; scalar
-    (ve3 #(#b1 #b10 #b100)) ; vector
-    (bve3 #(#b11 #b101 #b110)) ; bivector/pseudoscalar
-    (ie3 #(#b111)) ; trivector/pseudoscalar
-    (re3 #(#b0 #b11 #b101 #b110)))) ; spinor/rotor
+  '((e3 s e1 e2 e3 e1e2 e2e3 e1e3 e1e2e3) ; multivector (i.e. parent) class
+    (se3 s) ; scalar
+    (ve3 e1 e2 e3) ; vector
+    (bve3 e1e2 e2e3 e1e3) ; bivector/pseudoscalar
+    (ie3 e1e2e3) ; trivector/pseudoscalar
+    (re3 s e1e2 e2e3 e1e3))) ; spinor/rotor
 
 (defmethod *x2 ((g1 g) (g2 g)) ; Cross product
   (dual (*o2 g1 g2)))
