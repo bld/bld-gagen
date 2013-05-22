@@ -21,6 +21,9 @@
   "Test if argument is the number 0"
   (and (numberp n) (zerop n)))
 
+(defun parentspec (parent)
+  (cons parent (intern-list (basisblades (make-instance parent)))))
+
 ;; System definition file
 
 (defun write-asd-code (package &key author version maintainer license description)
@@ -74,34 +77,38 @@
 		      pmetric))
 	  (unitvectors (mapcar #'(lambda (uv) (intern (string uv))) punitvectors))
 	  (basisblades (mapcar #'(lambda (uv) (intern (string uv))) pbasisblades)))
-      `(defclass ,parent (g)
-	 ((coef :initform (make-array ,size :initial-element 0))
-	  (metric :allocation :class
-		  :initform (make-metric ,metric))
-	  (dimension :allocation :class
-		   :initform ,dimension)
-	  (size :allocation :class
-		:initform ,size)
-	  (revtable :allocation :class
-		    :initform ,revtable)
-	  (bitmap :allocation :class
-		  :initform ,bitmap)
-	  (unitvectors :allocation :class
-		       :initform ,unitvectors)
-	  (basisblades :allocation :class
-		       :initform ,basisblades)
-	  (basisbladekeys :allocation :class
-			  :initform ,basisbladekeys)
-	  (spec :allocation :class
-		:initform ',spec
-		:reader spec))))))
+      `(progn
+	 (defclass ,parent (g)
+	   ((coef :initform (make-array ,size :initial-element 0))
+	    (metric :allocation :class
+		    :initform (make-metric ,metric))
+	    (dimension :allocation :class
+		       :initform ,dimension)
+	    (size :allocation :class
+		  :initform ,size)
+	    (revtable :allocation :class
+		      :initform ,revtable)
+	    (bitmap :allocation :class
+		    :initform ,bitmap)
+	    (unitvectors :allocation :class
+			 :initform ,unitvectors)
+	    (basisblades :allocation :class
+			 :initform ,basisblades)
+	    (basisbladekeys :allocation :class
+			    :initform ,basisbladekeys)
+	    (spec :allocation :class
+		  :initform ',spec
+		  :reader spec)))
+	 (defmethod initialize-instance :after ((g ,parent) &key ,@basisblades)
+		    ,@(loop for bb in basisblades
+			 for i = 0 then (incf i)
+			 collect `(when ,bb (setf (gref g ,(make-keyword bb)) ,bb))))))))
 
-(defun write-gfun (class &optional (bbs (basisblades (make-instance class))))
+(defun write-gfun (class &optional (basisblades (basisblades (make-instance class))))
   "Generate function to create class given vector of basis blades"
-  (let* ((args (map 'list #'(lambda (bb) (intern (string bb))) bbs))
-	 (args-key (map 'list #'(lambda (bb) (list bb 0)) args)))
+  (let* ((args-key (mapcar #'(lambda (bb) (list bb 0)) basisblades)))
     `(defun ,class (&key ,@args-key)
-       (make-instance ',class :coef (vector ,@args)))))
+       (make-instance ',class :coef (vector ,@basisblades)))))
 
 (defun write-gfuns (spec)
   "Generate function to create child classes."
@@ -239,7 +246,7 @@
     ((typep result-temp 'g) ; result is a GA object
      (make-instance
       (type-of result-temp)
-      :coef (apply #'vector (apply #'simp-exprs (coerce (coef result-temp) 'list)))))
+      :coef (apply #'vector (mapcar #'trigsimp (coerce (coef result-temp) 'list)))))
     (t (simp result-temp)))) ; otherwise scalar
 
 (defun write-gamethod (parent fun spec &rest classes)
