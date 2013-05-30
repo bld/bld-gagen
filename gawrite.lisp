@@ -6,7 +6,23 @@
 
 (defun specref (class spec)
   "Reference a spec by class, returning the corresponding vector of basis bitmaps."
-  (second (assoc class spec)))
+  (cdr (assoc class spec)))
+
+(defun intern-list (l)
+  (mapcar #'(lambda (li) (intern (string li))) l))
+
+(defun bitmap-from-basisblades (basisblades parent)
+  (let ((pbitmap (bitmap (make-instance parent)))
+	(pbasisblades (intern-list (basisblades parent))))
+    (apply #'vector (loop for bb in basisblades
+		       collect (aref pbitmap (position bb pbasisblades))))))
+
+(defun numberzerop (n)
+  "Test if argument is the number 0"
+  (and (numberp n) (zerop n)))
+
+(defun parentspec (parent)
+  (cons parent (intern-list (basisblades (make-instance parent)))))
 
 ;; System definition file
 
@@ -20,10 +36,11 @@
       ,@(when license `(:license ,license))
       ,@(when description `(:description ,description))
       :depends-on ("bld-gen" "bld-ga")
+      :serial t
       :components
       ((:file "package")
-       (:file "mv" :depends-on ("package"))
-       (:file "ga" :depends-on ("mv"))))))
+       (:file "mv")
+       (:file "ga")))))
 
 ;; Package file code
 
@@ -45,92 +62,118 @@
 
 ;; Multivector definition file code
 
-(defun write-parent (parent dim &key metric spec 
-		     &aux (size (expt 2 dim)) (bitmap (specref parent spec)))
+(defun write-parent (parent spec)
   "Generate parent class definition."
-  `(defclass ,parent (g)
-     ((coef :initform (make-array ,size :initial-element 0))
-      (metric :allocation :class
-	      :initform ,(when metric `(make-metric ,metric)))
-      (dimension :allocation :class
-		 :initform ,dim)
-      (size :allocation :class
-	    :initform ,size)
-      (revtable :allocation :class
-		:initform ,(genrevtable dim))
-      (bitmap :allocation :class
-	      :initform ,bitmap)
-      (spec :allocation :class
-	    :initform ',spec
-	    :reader spec))))
+  (with-slots ((pmetric metric) 
+	       dimension 
+	       size 
+	       revtable 
+	       bitmap 
+	       (punitvectors unitvectors)
+	       (pbasisblades basisblades) 
+	       basisbladekeys) (make-instance parent)
+    (let ((metric (if (typep pmetric 'metric)
+		      (slot-value pmetric 'matrix)
+		      pmetric))
+	  (unitvectors (mapcar #'(lambda (uv) (intern (string uv))) punitvectors))
+	  (basisblades (mapcar #'(lambda (uv) (intern (string uv))) pbasisblades)))
+      `(progn
+	 (defclass ,parent (g)
+	   ((coef :initform (make-array ,size :initial-element 0))
+	    (metric :allocation :class
+		    :initform (make-metric ,metric))
+	    (dimension :allocation :class
+		       :initform ,dimension)
+	    (size :allocation :class
+		  :initform ,size)
+	    (revtable :allocation :class
+		      :initform ,revtable)
+	    (bitmap :allocation :class
+		    :initform ,bitmap)
+	    (unitvectors :allocation :class
+			 :initform ,unitvectors)
+	    (basisblades :allocation :class
+			 :initform ,basisblades)
+	    (basisbladekeys :allocation :class
+			    :initform ,basisbladekeys)
+	    (spec :allocation :class
+		  :initform ',spec
+		  :reader spec)))
+	 (defmethod initialize-instance :after ((g ,parent) &key ,@basisblades)
+		    ,@(loop for bb in basisblades
+			 for i = 0 then (incf i)
+			 collect `(when ,bb (setf (gref g ,(make-keyword bb)) ,bb))))))))
 
-(defun write-gfun (class bitmap)
-  "Generate function to create parent class."
-  (let* ((args (loop for b across bitmap
-		  collect (build-symbol c (:< (format nil "~b" b)))))
-	 (args-key (loop for arg in args collect (list arg 0))))
+(defun write-gfun (class &optional (basisblades (basisblades (make-instance class))))
+  "Generate function to create class given vector of basis blades"
+  (let* ((args-key (mapcar #'(lambda (bb) (list bb 0)) basisblades)))
     `(defun ,class (&key ,@args-key)
-       (make-instance ',class :coef (vector ,@args)))))
+       (make-instance ',class :coef (vector ,@basisblades)))))
 
-(defun write-child-gfuns (spec)
+(defun write-gfuns (spec)
   "Generate function to create child classes."
-  (loop for (child bitmap) in spec
-     collect (write-gfun child bitmap)))
+  (loop for (class . basisblades) in spec
+     collect (write-gfun class basisblades)))
 
-(defun write-child (child parent dim bitmap 
-		    &aux (psize (expt 2 dim)) (size (length bitmap)))
+(defun write-child (child parent bitmap basisblades)
   "Generate one child class definition."
-  `(defclass ,child (,parent)
-     ((coef :initform (make-array ,size :initial-element 0))
-      (size :allocation :class
-	    :initform ,size)
-      (bitmap :allocation :class
-	      :initform ,bitmap))))
+  (let ((size (length bitmap)))
+    `(defclass ,child (,parent)
+       ((coef :initform (make-array ,size :initial-element 0))
+	(size :allocation :class
+	      :initform ,size)
+	(bitmap :allocation :class
+		:initform ,bitmap)
+	(basisblades :allocation :class
+		     :initform ',basisblades)))))
 
-(defun write-children (parent dim spec)
+(defun write-children (parent spec)
   "Generate class definitions for child classes."
-  (loop for (child bitmap) in spec
-     unless (equal child parent)
-     collect (write-child child parent dim bitmap)))
+  (let* ((pobj (make-instance parent))
+	 (pbitmap (bitmap pobj))
+	 (pbasisblades (mapcar #'(lambda (bb) (intern (string bb))) (basisblades pobj))))
+    (loop for (child . basisblades) in spec
+       for bitmap = (apply #'vector 
+			   (loop for bb in basisblades
+			      collect (aref pbitmap (position bb pbasisblades))))
+       unless (equal child parent)
+       collect (write-child child parent bitmap basisblades))))
 
-(defun write-gref (child dim bitmap &aux (psize (expt 2 dim)))
-  "Define gref method for a child class."
-  `(defmethod gref ((g ,child) (bb integer))
+(defun write-gref (class basisblades)
+  "Define gref method for a GA class"
+  `(defmethod gref ((g ,class) (bb symbol))
      (case bb
-       ,@(loop for i below psize
-	    for posbb = (position i bitmap)
-	    if posbb
-	    collect `(,i (aref (coef g) ,posbb))
-	    else collect `(,i 0)))))
+       ,@(loop for bb in basisblades
+	    for i = 0 then (incf i)
+	    collect `(,(make-keyword bb) (aref (coef g) ,i)))
+       (t 0))))
 
-(defun write-grefs (dim spec)
+(defun write-grefs (spec)
   "Define gref methods for child classes."
-  (loop for (child bitmap) in spec
-     collect (write-gref child dim bitmap)))
+  (loop for (class . basisblades) in spec
+     collect (write-gref class basisblades)))
 
-(defun write-gset (child dim bitmap &aux (psize (expt 2 dim)))
-  "Define gset method for child class."
-  `(defmethod gset ((g ,child) (bb integer) val)
+(defun write-gset (class basisblades)
+  `(defmethod gset ((g ,class) (bb symbol) val)
      (case bb
-       ,@(loop for i below psize
-	    for posbb = (position i bitmap)
-	    when posbb
-	    collect `(,i (setf (aref (coef g) ,posbb) val)))
-       (t (error (format nil ,(format nil "Basis bitmap ~~b doesn't exist in GA object of type ~a." child) bb))))))
+       ,@(loop for bb in basisblades
+	    for i = 0 then (incf i)
+	    collect `(,(make-keyword bb) (setf (aref (coef g) ,i) val)))
+       (t (error (format nil ,(format nil "Basis bitmap ~~b doesn't exist in GA object of type ~a." class) bb))))))
 
-(defun write-gsets (dim spec)
+(defun write-gsets (spec)
   "Define gset methods for child classes."
-  (loop for (child bitmap) in spec
-     collect (write-gset child dim bitmap)))
+  (loop for (class . basisblades) in spec
+     collect (write-gset class basisblades)))
 
 (defun write-mv-code (parent dim pkgname spec &key metric &aux (psize (expt 2 dim)))
   "Generate mv.lisp code."
   `((in-package ,(make-keyword pkgname))
-    ,(write-parent parent dim :metric metric :spec spec)
-    ,@(write-children parent dim spec)
-    ,@(write-child-gfuns spec)
-    ,@(write-grefs dim spec)
-    ,@(write-gsets dim spec)))
+    ,(write-parent parent spec)
+    ,@(write-children parent spec)
+    ,@(write-gfuns spec)
+    ,@(write-grefs spec)
+    ,@(write-gsets spec)))
 
 (defun write-ga-file (filespec code)
   "Write a list of code definitions to specified file spec."
@@ -144,10 +187,11 @@
   "Make symbolic GA object of given symbol and specialized child class"
   (if (or (equal class 'integer) (equal class 'number) (equal class t))
       sym
-      (let ((ptmp (make-instance parent))
-	    (bitmap (specref class spec)))
-        (loop for b across bitmap
-           do (setf (gref ptmp b) `(gref ,sym ,b)))
+      (let* ((ptmp (make-instance parent))
+	     (basisblades (specref class spec)))
+        (loop for bb in basisblades
+	   for bbk = (make-keyword bb)
+           do (gset ptmp bbk `(gref ,sym ,bbk)))
 	ptmp)))
 
 (defun make-gaobjs (parent args classes spec)
@@ -158,6 +202,10 @@
   "Test if a list of basis bitmaps is in a bitmap"
   (every #'(lambda (bb) (find bb bitmap)) bbl))
 
+(defun find-basisblades-test (bbl basisblades)
+  "Test if one list of basis blades in contained in another"
+  (every #'(lambda (bb) (find bb basisblades)) bbl))
+
 (defun non-zero-basis-bitmaps (g)
   "Given parent GA object, return a list of basis bitmaps corresponding to non-zero or symbolic coefficients"
   (loop for b across (bitmap g)
@@ -165,21 +213,27 @@
      unless (and (numberp c) (zerop c))
      collect b))
 
+(defun non-zero-basisblades (g)
+  "Collect basisblades that are non-zero"
+  (loopg b c g
+     unless (numberzerop c)
+     collect (intern (string (nth b (basisblades g))))))
+
 (defun find-specs (bbl spec)
-  "Given a list of basis-bitmaps and an alist of specialized GA sub-classes & their bitmaps, return a list of the subclass names contain them"
-  (loop for (name bitmap) in spec
-     when (find-bitmap-test bbl bitmap)
+  "Given a list of basis blades and the specialized GA sub-classes, return a list of the subclass names contain them"
+  (loop for (name . basisblades) in spec
+     when (find-basisblades-test bbl basisblades)
      collect name))
 
 (defun find-spec (g spec)
-  "Given a parent GA object and hash-table of bitmaps, return the hash-table key with corresponding bitmap of minimum length that matched non-zero/symbolic coefficients of the GA object. This is the name of a specialized GA class."
-  (loop for name in (find-specs (non-zero-basis-bitmaps g) spec)
+  "Given a parent GA object and spec, find the specialized GA class is matches."
+  (loop for name in (find-specs (non-zero-basisblades g) spec)
      for namemin = name
      then (if (< (length (specref name spec))
 		 (length (specref namemin spec)))
 	      name
 	      namemin)
-     finally (return namemin )))
+     finally (return namemin)))
 
 (defun make-args (num &optional (sym 'g))
   "Make argument symbols as 'g appended to number"
@@ -192,8 +246,8 @@
     ((typep result-temp 'g) ; result is a GA object
      (make-instance
       (type-of result-temp)
-      :coef (apply #'vector (apply #'simp-exprs (coerce (coef result-temp) 'list)))))
-    (t (simp result-temp)))) ; otherwise scalar
+      :coef (map 'vector #'trigsimp (coef result-temp))))
+    (t (trigsimp result-temp)))) ; otherwise scalar
 
 (defun write-gamethod (parent fun spec &rest classes)
   "Define a geometric algebra method given name of generic function and list of classes for each argument"
@@ -206,8 +260,8 @@
 			 (first classes)
 			 (find-spec res spec))))
 	 (reslist (when resclass ; list of coefficients corresponding to result class
-		    (loop for b across (specref resclass spec)
-		       collect (gref res b)))))
+		    (loop for b in (specref resclass spec)
+		       collect (gref res (make-keyword b))))))
     `(defmethod ,fun (,@(mapcar #'list args classes))
        ,(if resclass
 	    `(make-instance ',resclass :coef (vector ,@reslist))
@@ -244,7 +298,7 @@
 
 (defun spec-bitmaps (spec)
   "Return list of bitmap vectors from a spec."
-  (mapcar #'second spec))
+  (mapcar #'cdr spec))
 
 (defun write-gamethodsall1 (parent fun spec)
   "Generate all one-argument methods for given parent class, function, and spec."
@@ -264,8 +318,9 @@
     (*s2 all all)
     (revg all)
     (invv versor)
-    (refl all vector)
-    (rot all spinor)
+    (reflectline all vector)
+    (reflectplane all vector)
+    (rotate all spinor)
     (spin all spinor)
     (normr2 all)
     (normr all)
@@ -330,8 +385,8 @@ Generic arithmetic methods from BLD-GEN are also listed.")
 	 (res (graden gaobj grade))
 	 (resclass (find-spec res spec))
 	 (reslist (when resclass
-		    (loop for b across (specref resclass spec)
-		       collect (gref res b)))))
+		    (loop for b in (specref resclass spec)
+		       collect (gref res (make-keyword b))))))
     `(defmethod graden ((g ,parent) (n (eql ,grade)))
        (make-instance ',resclass :coef (vector ,@reslist)))))
 
