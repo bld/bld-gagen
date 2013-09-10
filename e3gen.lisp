@@ -27,5 +27,6 @@
  :license "MIT"
  :description "Euclidean 2D geometric algebra"
  :gacode (list '(defgeneric *x2 (v1 v2)) ; Add cross product definition to E3
-	       (write-gamethod 'e3 '*x2 *e3spec* 've3 've3))
- :exports '(*x2))
+	       (write-gamethod 'e3 '*x2 *e3spec* 've3 've3)
+	       '(defun *x (&rest vs) (reduce #'*x2 vs)))
+ :exports '(*x2 *x))
