@@ -320,7 +320,7 @@
     (invv versor)
     (reflectline all vector)
     (reflectplane all vector)
-    (rotate all spinor)
+    (rotateg all spinor)
     (spin all spinor)
     (normr2 all)
     (normr all)
