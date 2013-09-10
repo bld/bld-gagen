@@ -6,7 +6,8 @@
   :license "MIT"
   :description "Write optimized code for specific geometric algebras"
   :depends-on ("bld-utils" "bld-ga" "bld-maxima" "bld-gen" "bld-gensym" "alexandria")
+  :serial t
   :components
   ((:file "package")
-   (:file "gawrite2" :depends-on ("package"))
-   (:file "gagen" :depends-on ("gawrite2" "package"))))
+   (:file "gawrite")
+   (:file "gagen")))
