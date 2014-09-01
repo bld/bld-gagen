@@ -28,7 +28,7 @@
 
 (defun write-asd-code (package &key author version maintainer license description)
   "Generate code for the .asd file given package name and, optionally, other fields."
-  `((asdf:defsystem ,(make-keyword package)
+#|  `((asdf:defsystem ,(make-keyword package)
       :name ,(format nil "~a" package)
       ,@(when author `(:author ,author))
       ,@(when version `(:version ,version))
@@ -40,7 +40,18 @@
       :components
       ((:file "package")
        (:file "mv")
-       (:file "ga")))))
+       (:file "ga")))))|#
+  `(("(asdf:defsystem ~a~%" ,(make-keyword package))
+    ("  :name \"~a\"~%" ,package)
+    ,@(when author `(("  :author \"~a\"~%" ,author)))
+    ,@(when version `(("  :version \"~a\"~%" ,version)))
+    ,@(when maintainer `(("  :maintainer \"~a\"~%" ,maintainer)))
+    ,@(when license `(("  :license \"~a\"~%" ,license)))
+    ,@(when description `(("  :description \"~a\"~%" ,description)))
+    ("  :depends-on (\"bld-gen\" \"bld-ga\")~%")
+    ("  :serial t~%")
+    ("  :components ((:file \"package\") (:file \"mv\") (:file \"ga\")))~%")))
+
 
 ;; Package file code
 
@@ -180,6 +191,12 @@
   (with-open-file (stream filespec :direction :output)
     (dolist (line code)
       (print line stream))))
+
+(defun write-asd-file (filespec codedefs)
+  "Write ASD code definitions to a file"
+  (with-open-file (stream filespec :direction :output)
+    (dolist (def codedefs)
+      (format stream (first def) (second def)))))
 
 ;; Geometric algebra method code
 
@@ -377,7 +394,8 @@ Generic arithmetic methods from BLD-GEN are also listed.")
 					(list vector) 'vector
 					(subst versors 'versor
 					       def)))))
-       append (apply #'write-gamethods parent method spec classlists))))
+       append (apply #'write-gamethods parent method spec classlists)
+       do (princ #\. t))))
 
 (defun write-graden-n (parent spec grade)
   "Write method for GRADEN specialized on the grade N to return a GA object from SPEC"
@@ -424,7 +442,7 @@ EXPORTS (optional): export list of additional code"
   (print "Writing ASD file")
   (let ((asd (write-asd-code package :author author :version version :maintainer maintainer :license license :description description))
 	(asdfile (concatenate 'string (string-downcase (string package)) ".asd")))
-    (write-ga-file (format nil "~a/~a" path asdfile) asd))
+    (write-asd-file (format nil "~a/~a" path asdfile) asd))
   (print "Writing package file")
   (let ((pkg (write-package-code package parent spec exports))
 	(pkgfile "package.lisp"))
