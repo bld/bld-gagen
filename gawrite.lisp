@@ -61,57 +61,42 @@
 
 ;; Multivector definition file code
 
-(defun write-parent (parent spec)
+(defun write-child (child parent bitmap basisblades spec)
   "Generate parent class definition."
-  (with-slots ((pmetric metric) 
-	       dimension 
-	       size 
-	       revtable 
-	       bitmap 
-	       (punitvectors unitvectors)
-	       (pbasisblades basisblades) 
-	       basisbladekeys) (make-instance parent)
-    (let ((metric (if (typep pmetric 'metric)
+  (with-slots ((pmetric metric)
+	       revtable
+	       dimension
+	       (psize size)
+	       (punitvectors unitvectors)) (make-instance parent)
+    (let ((size (length bitmap))
+	  (metric (if (typep pmetric 'metric)
 		      (slot-value pmetric 'matrix)
 		      pmetric))
 	  (unitvectors (mapcar #'(lambda (uv) (intern (string uv))) punitvectors))
-	  (basisblades (mapcar #'(lambda (uv) (intern (string uv))) pbasisblades)))
-      `(progn
-	 (defclass ,parent (g)
-	   ((metric :allocation :class
-		    :initform (make-metric ,metric))
-	    (dimension :allocation :class
-		       :initform ,dimension)
-	    (size :allocation :class
-		  :initform ,size)
-	    (revtable :allocation :class
-		      :initform (bld-ga::make-revtable ,size))
-	    (bitmap :allocation :class
-		    :initform (bld-ga::make-bitmap ,size))
-	    (unitvectors :allocation :class
-			 :initform ',unitvectors)
-	    (basisblades :allocation :class
-			 :initform ',basisblades)
-	    (basisbladekeys :allocation :class
-			    :initform ',basisbladekeys)
-	    (spec :allocation :class
-		  :initform ',spec
-		  :reader spec)
-	    ,@(loop for bb in basisblades
-		 collect `(,bb :initarg ,(make-keyword bb) :initform 0))))))))
-
-(defun write-child (child parent bitmap basisblades)
-  "Generate one child class definition."
-  (let ((size (length bitmap)))
-    `(defclass ,child (g)
-       ((size :allocation :class
-	      :initform ,size)
-	(bitmap :allocation :class
-		:initform (bld-ga::make-bitmap ,size))
-	(basisblades :allocation :class
-		     :initform ',basisblades)
-	,@(loop for bb in basisblades
-	     collect `(,bb :initarg ,(make-keyword bb) :initform 0))))))
+	  (basisbladekeys (mapcar #'make-keyword basisblades)))
+      `(defclass ,child (g)
+	 ((metric :allocation :class
+		  :initform (make-metric ,metric))
+	  (dimension :allocation :class
+		     :initform ,dimension)
+	  (size :allocation :class
+		:initform ,size)
+	  (revtable :allocation :class
+		    :initform ,revtable)
+	  (bitmap :allocation :class
+		  :initform ,bitmap)
+	  (unitvectors :allocation :class
+		       :initform ',unitvectors)
+	  (basisblades :allocation :class
+		       :initform ',basisblades)
+	  (basisbladekeys :allocation :class
+			  :initform ',basisbladekeys)
+	  (spec :allocation :class
+		:initform ',spec
+		:reader spec)
+	  ,@(loop for bb in basisblades
+	       for bbk in basisbladekeys
+	       collect `(,bb :initarg ,bbk :initform 0)))))))
 
 (defun write-children (parent spec)
   "Generate class definitions for child classes."
@@ -122,13 +107,11 @@
        for bitmap = (apply #'vector 
 			   (loop for bb in basisblades
 			      collect (aref pbitmap (position bb pbasisblades))))
-       unless (equal child parent)
-       collect (write-child child parent bitmap basisblades))))
+       collect (write-child child parent bitmap basisblades spec))))
 
 (defun write-mv-code (parent dim pkgname spec &key metric &aux (psize (expt 2 dim)))
   "Generate mv.lisp code."
   `((in-package ,(make-keyword pkgname))
-    ,(write-parent parent spec)
     ,@(write-children parent spec)))
 
 (defun write-ga-file (filespec code)
@@ -269,7 +252,6 @@
 (defparameter *gamethods-table*
   '((*o2 all all)
     (*g2 all all)
-    (*g3 all all all)
     (*i2 all all)
     (*c2 all all)
     (*s2 all all)
