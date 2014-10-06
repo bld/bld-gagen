@@ -21,4 +21,7 @@
    :spinor 're2
    :author "Benjamin L. Diedrich" 
    :license "MIT" 
-   :description "Euclidean 2D geometric algebra"))
+   :description "Euclidean 2D geometric algebra"
+   :gacode (list
+	    (write-gamethod 'e2 '*g3-v *e2spec* 've2 've2 've2)
+	    (write-gamethod 'e2 '*g3-v *e2spec* 'bve2 've2 'bve2))))

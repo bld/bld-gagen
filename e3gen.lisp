@@ -29,5 +29,7 @@
    :description "Euclidean 2D geometric algebra"
    :gacode (list '(defgeneric *x2 (v1 v2)) ; Add cross product definition to E3
 		 (write-gamethod 'e3 '*x2 *e3spec* 've3 've3)
-		 '(defun *x (&rest vs) (reduce #'*x2 vs)))
+		 '(defun *x (&rest vs) (reduce #'*x2 vs))
+		 (write-gamethod 'e3 '*g3-v *e3spec* 've3 've3 've3)
+		 (write-gamethod 'e3 '*g3-v *e3spec* 'bve3 've3 'bve3))
    :exports '(*x2 *x)))
