@@ -1,5 +1,5 @@
 (defpackage :bld-gagen
-  (:use :cl :bld-ga :bld-utils :bld-gensym)
+  (:use :cl :bld-ga :bld-utils :bld-symbolic)
   (:import-from :alexandria make-keyword)
   (:shadowing-import-from :bld-gen
                           + - * / expt
